@@ -125,7 +125,7 @@ flowchart LR
     Teknisi([Teknisi])
     Customer([Customer / Publik])
 
-    subgraph Serv.io System
+    subgraph System ["Serv.io System"]
         UC1(Akses Dashboard & Statistik)
         UC2(Kelola Data Customer & Perangkat)
         UC3(Buat Tiket Servis)
