@@ -56,13 +56,13 @@ async function main() {
     const perangkatData = [
         { c: 0, jenis: "Laptop", merk: "ASUS", mod: "ROG Zephyrus G14", sn: "ASUS-2024-001" },
         { c: 0, jenis: "Laptop", merk: "Apple", mod: "MacBook Pro M2", sn: "MAC-2023-992" },
-        { c: 1, jenis: "Desktop", merk: "HP", mod: "Pavilion Desktop", sn: "HP-2024-002" },
+        { c: 1, jenis: "Desktop PC", merk: "HP", mod: "Pavilion Desktop", sn: "HP-2024-002" },
         { c: 2, jenis: "Laptop", merk: "Lenovo", mod: "ThinkPad X1 Carbon", sn: "LEN-2024-003" },
-        { c: 3, jenis: "Printer", merk: "Epson", mod: "L3110", sn: "EPS-1122-334" },
+        { c: 3, jenis: "Desktop PC", merk: "Lenovo", mod: "ThinkCentre M70s", sn: "LEN-1122-334" },
         { c: 4, jenis: "Laptop", merk: "Acer", mod: "Predator Helios 300", sn: "ACR-2021-004" },
-        { c: 4, jenis: "Lainnya", merk: "Sony", mod: "PlayStation 5", sn: "PS5-5544-332" },
+        { c: 4, jenis: "Desktop PC", merk: "ASUS", mod: "ROG Strix GT15", sn: "ROG-5544-332" },
         { c: 5, jenis: "Laptop", merk: "Dell", mod: "XPS 15", sn: "DEL-2023-005" },
-        { c: 6, jenis: "Desktop", merk: "Custom Build", mod: "PC Gaming Rakitan", sn: "-" },
+        { c: 6, jenis: "Desktop PC", merk: "Custom Build", mod: "PC Gaming Rakitan", sn: "-" },
         { c: 7, jenis: "Laptop", merk: "MSI", mod: "Modern 14", sn: "MSI-2022-006" }
     ];
 
@@ -81,22 +81,22 @@ async function main() {
 
     console.log("4. Membuat Spareparts...");
     const sparepartData = [
-        { kategori: "Laptop, Desktop", nama: "RAM DDR4 8GB", stok: 15, harga: 450000 },
-        { kategori: "Laptop, Desktop", nama: "RAM DDR4 16GB", stok: 10, harga: 850000 },
-        { kategori: "Laptop, Desktop", nama: "RAM DDR5 16GB", stok: 8, harga: 1250000 },
-        { kategori: "Laptop, Desktop", nama: "SSD NVMe 512GB", stok: 12, harga: 650000 },
-        { kategori: "Laptop, Desktop", nama: "SSD NVMe 1TB", stok: 5, harga: 1150000 },
-        { kategori: "Desktop", nama: "HDD SATA 1TB", stok: 4, harga: 550000 },
-        { kategori: "Desktop", nama: "Power Supply 550W 80+", stok: 6, harga: 750000 },
-        { kategori: "Laptop, Desktop, Lainnya", nama: "Thermal Paste Arctic MX-4", stok: 25, harga: 85000 },
+        { kategori: "Laptop, Desktop PC", nama: "RAM DDR4 8GB", stok: 15, harga: 450000 },
+        { kategori: "Laptop, Desktop PC", nama: "RAM DDR4 16GB", stok: 10, harga: 850000 },
+        { kategori: "Laptop, Desktop PC", nama: "RAM DDR5 16GB", stok: 8, harga: 1250000 },
+        { kategori: "Laptop, Desktop PC", nama: "SSD NVMe 512GB", stok: 12, harga: 650000 },
+        { kategori: "Laptop, Desktop PC", nama: "SSD NVMe 1TB", stok: 5, harga: 1150000 },
+        { kategori: "Desktop PC", nama: "HDD SATA 1TB", stok: 4, harga: 550000 },
+        { kategori: "Desktop PC", nama: "Power Supply 550W 80+", stok: 6, harga: 750000 },
+        { kategori: "Laptop, Desktop PC", nama: "Thermal Paste Arctic MX-4", stok: 25, harga: 85000 },
         { kategori: "Laptop", nama: "Kipas Laptop Universal", stok: 10, harga: 150000 },
         { kategori: "Laptop", nama: "Keyboard Laptop ASUS ROG", stok: 2, harga: 850000 },
         { kategori: "Laptop", nama: "Layar LCD 14 inch FHD", stok: 3, harga: 1250000 },
         { kategori: "Laptop", nama: "Baterai MacBook Pro M2", stok: 1, harga: 2500000 },
-        { kategori: "Printer", nama: "Tinta Epson 003 Black", stok: 20, harga: 85000 },
-        { kategori: "Desktop", nama: "Motherboard PC H610", stok: 4, harga: 1350000 },
-        { kategori: "Printer", nama: "Print Head Epson L3110", stok: 2, harga: 550000 },
-        { kategori: "Printer", nama: "Roller Penarik Kertas Printer", stok: 5, harga: 125000 }
+        { kategori: "Desktop PC", nama: "Casing Fan RGB 120mm", stok: 20, harga: 85000 },
+        { kategori: "Desktop PC", nama: "Motherboard PC H610", stok: 4, harga: 1350000 },
+        { kategori: "Desktop PC", nama: "CPU Cooler Tower", stok: 2, harga: 550000 },
+        { kategori: "Desktop PC", nama: "Kabel SATA III Data", stok: 5, harga: 125000 }
     ];
 
     const spareparts = [];
@@ -116,15 +116,15 @@ async function main() {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 30); // tickets from past 30 days
 
-    // Tiket 1: Diterima (Baru masuk)
+    // Tiket 1: Diterima (Baru masuk, belum ditugaskan/diambil)
     await prisma.tiketServis.create({
         data: {
             nomor_tiket: generateNomorTiket(),
             perangkat_id: perangkats[0].id,
-            teknisi_id: teknisis[0].id,
-            keluhan: "Laptop cepat panas saat main game, kadang frame drop drastis.",
+            teknisi_id: null,
+            keluhan: "Laptop mati total terkena tumpahan air kopi.",
             status: "diterima",
-            created_at: randomDate(new Date(Date.now() - 2 * 86400000), new Date())
+            created_at: randomDate(new Date(Date.now() - 1 * 86400000), new Date())
         }
     });
 
@@ -132,16 +132,16 @@ async function main() {
     await prisma.tiketServis.create({
         data: {
             nomor_tiket: generateNomorTiket(),
-            perangkat_id: perangkats[4].id, // Printer Epson
+            perangkat_id: perangkats[4].id, // Lenovo Desktop
             teknisi_id: teknisis[1].id,
-            keluhan: "Hasil cetak putus-putus dan warna hitam tidak keluar sama sekali.",
+            keluhan: "Sering mati sendiri saat digunakan lebih dari 1 jam.",
             status: "didiagnosis",
             created_at: randomDate(new Date(Date.now() - 4 * 86400000), new Date(Date.now() - 3 * 86400000)),
             diagnosis: {
                 create: {
-                    masalah: "Head print buntu parah pada warna hitam, perlu di-flushing.",
-                    solusi: "Flushing head printer dan ganti tinta original.",
-                    estimasi_biaya: 150000
+                    masalah: "Thermal paste prosesor kering dan kipas kotor parah (Overheating).",
+                    solusi: "Pembersihan total, ganti thermal paste, dan ganti kipas pendingin CPU.",
+                    estimasi_biaya: 350000
                 }
             }
         }
@@ -304,16 +304,16 @@ async function main() {
     await prisma.tiketServis.create({
         data: {
             nomor_tiket: generateNomorTiket(),
-            perangkat_id: perangkats[6].id, // PS5
+            perangkat_id: perangkats[6].id, // ASUS Desktop
             teknisi_id: teknisis[1].id,
-            keluhan: "PS5 Overheating dan mati sendiri saat main game berat.",
+            keluhan: "VGA Card tidak terbaca, artefak saat render 3D.",
             status: "dibatalkan",
             created_at: randomDate(new Date(Date.now() - 14 * 86400000), new Date(Date.now() - 12 * 86400000)),
             diagnosis: {
                 create: {
-                    masalah: "Liquid metal kering dan menumpuk di pinggiran APU.",
-                    solusi: "Repaste liquid metal dan bersihkan total ruang pendingin.",
-                    estimasi_biaya: 450000
+                    masalah: "VRAM pada VGA Card rusak parah, tidak bisa diperbaiki.",
+                    solusi: "Perlu ganti unit VGA Card baru.",
+                    estimasi_biaya: 4500000
                 }
             }
         }

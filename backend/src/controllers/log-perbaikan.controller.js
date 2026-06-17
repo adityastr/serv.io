@@ -10,6 +10,14 @@ async function create(req, res) {
             return res.status(404).json({ message: "Tiket servis tidak ditemukan" });
         }
 
+        if (!tiket.teknisi_id) {
+            return res.status(400).json({ message: "Tiket harus ditugaskan ke teknisi terlebih dahulu sebelum log dapat ditambahkan" });
+        }
+
+        if (req.user.role === "teknisi" && tiket.teknisi_id !== req.user.id) {
+            return res.status(403).json({ message: "Anda tidak berhak menambahkan log pada tiket ini" });
+        }
+
         const log = await prisma.logPerbaikan.create({
             data: {
                 tiket_id: Number(tiket_id),

@@ -73,4 +73,32 @@ async function create(req, res) {
     }
 }
 
-module.exports = { getAll, create };
+// Mengambil detail invoice berdasarkan ID
+async function getById(req, res) {
+    try {
+        const { id } = req.params;
+        const invoice = await prisma.invoice.findUnique({
+            where: { id: Number(id) },
+            include: {
+                tiket: {
+                    include: {
+                        perangkat: { include: { customer: true } },
+                        penggunaan_sparepart: { include: { sparepart: true } },
+                        teknisi: { select: { nama: true } },
+                        diagnosis: true
+                    },
+                },
+            },
+        });
+
+        if (!invoice) {
+            return res.status(404).json({ message: "Invoice tidak ditemukan" });
+        }
+
+        return res.json(invoice);
+    } catch (error) {
+        return res.status(500).json({ message: "Terjadi kesalahan", error: error.message });
+    }
+}
+
+module.exports = { getAll, create, getById };

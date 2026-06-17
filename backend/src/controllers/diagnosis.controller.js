@@ -15,6 +15,14 @@ async function create(req, res) {
             return res.status(400).json({ message: "Tiket harus dalam status diterima untuk diagnosis" });
         }
 
+        if (!tiket.teknisi_id) {
+            return res.status(400).json({ message: "Tiket harus ditugaskan ke teknisi terlebih dahulu sebelum diagnosis" });
+        }
+
+        if (req.user.role === "teknisi" && tiket.teknisi_id !== req.user.id) {
+            return res.status(403).json({ message: "Anda tidak berhak mendiagnosis tiket ini" });
+        }
+
         // Cek apakah sudah ada diagnosis
         const existing = await prisma.diagnosis.findUnique({ where: { tiket_id: Number(tiket_id) } });
         if (existing) {

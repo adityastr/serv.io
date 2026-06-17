@@ -66,10 +66,16 @@ async function teknisiDashboard(req, res) {
     try {
         const teknisiId = req.user.id;
 
-        const [tiketDitugaskan, menungguDiagnosis, dalamPerbaikan, tiketSelesai, tiketBerdasarkanStatus] =
+        const [tiketDitugaskan, tiketTersedia, menungguDiagnosis, dalamPerbaikan, tiketSelesai, tiketBerdasarkanStatus] =
             await Promise.all([
                 prisma.tiketServis.count({
-                    where: { teknisi_id: teknisiId },
+                    where: { 
+                        teknisi_id: teknisiId,
+                        status: { notIn: ["selesai", "diambil", "dibatalkan"] } 
+                    },
+                }),
+                prisma.tiketServis.count({
+                    where: { status: "diterima", teknisi_id: null },
                 }),
                 prisma.tiketServis.count({
                     where: { teknisi_id: teknisiId, status: "diterima" },
@@ -85,7 +91,10 @@ async function teknisiDashboard(req, res) {
                 }),
                 prisma.tiketServis.groupBy({
                     by: ['status'],
-                    where: { teknisi_id: teknisiId },
+                    where: { 
+                        teknisi_id: teknisiId,
+                        status: { notIn: ["selesai", "diambil", "dibatalkan"] }
+                    },
                     _count: { _all: true }
                 })
             ]);
@@ -98,6 +107,7 @@ async function teknisiDashboard(req, res) {
 
         return res.json({
             tiketDitugaskan,
+            tiketTersedia,
             menungguDiagnosis,
             dalamPerbaikan,
             tiketSelesai,

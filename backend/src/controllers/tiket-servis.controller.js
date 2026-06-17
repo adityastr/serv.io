@@ -22,9 +22,10 @@ async function getAll(req, res) {
         if (status) where.status = status;
         if (teknisi_id) where.teknisi_id = Number(teknisi_id);
 
-        // Teknisi hanya melihat tiket yang ditugaskan
+        // Hapus pembatasan - Teknisi sekarang bisa melihat semua tiket di list.
+        // Hak akses edit/update sudah diamankan di frontend (detail) dan validasi di route.
         if (req.user.role === "teknisi") {
-            where.teknisi_id = req.user.id;
+            if (where.teknisi_id !== undefined) delete where.teknisi_id;
         }
 
         const tikets = await prisma.tiketServis.findMany({
@@ -118,6 +119,13 @@ async function update(req, res) {
             if (!allowed.includes(status)) {
                 return res.status(400).json({
                     message: `Transisi status tidak valid: ${tiket.status} → ${status}`,
+                });
+            }
+
+            // RBAC: Teknisi hanya bisa mengubah status terkait perbaikan
+            if (req.user.role === "teknisi" && !["dalam_perbaikan", "selesai"].includes(status)) {
+                return res.status(403).json({
+                    message: "Akses ditolak: Teknisi hanya diizinkan memperbarui status ke 'dalam_perbaikan' atau 'selesai'",
                 });
             }
         }
