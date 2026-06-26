@@ -12,7 +12,8 @@ import {
     LogOut,
     Menu,
     X,
-    Settings
+    Settings,
+    User as UserIcon
 } from "lucide-react";
 
 const adminMenu = [
@@ -49,7 +50,7 @@ export default function Layout({ children }) {
     }
 
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+        <div className="flex h-screen print:h-auto bg-slate-50 overflow-hidden print:overflow-visible font-sans">
             {/* Mobile overlay */}
             {isMobileMenuOpen && (
                 <div 
@@ -60,7 +61,7 @@ export default function Layout({ children }) {
 
             {/* Sidebar */}
             <aside 
-                className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out ${
+                className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out print:hidden ${
                     isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
                 }`}
             >
@@ -114,21 +115,30 @@ export default function Layout({ children }) {
                                 <p className="text-xs text-slate-500 capitalize truncate">{user?.role}</p>
                             </div>
                         </div>
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-white hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 hover:border-red-200 rounded-xl text-sm font-medium transition-colors shadow-sm"
-                        >
-                            <LogOut className="w-4 h-4" />
-                            <span>Keluar</span>
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Link
+                                to="/profile"
+                                className="flex items-center justify-center gap-2 w-full py-2 px-2 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                            >
+                                <UserIcon className="w-4 h-4" />
+                                <span>Profil</span>
+                            </Link>
+                            <button
+                                onClick={handleLogout}
+                                className="flex items-center justify-center gap-2 w-full py-2 px-2 bg-white hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 hover:border-red-200 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                <span>Keluar</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </aside>
 
             {/* Main content area */}
-            <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 print:bg-white print:overflow-visible">
                 {/* Mobile Header */}
-                <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-slate-200 shrink-0">
+                <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-slate-200 shrink-0 print:hidden">
                     <div className="flex items-center gap-3">
                         <div className="bg-blue-50 border border-blue-100 p-1.5 rounded-lg">
                             <Settings className="w-5 h-5 text-blue-600" />
@@ -144,8 +154,8 @@ export default function Layout({ children }) {
                 </header>
 
                 {/* Page Content */}
-                <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
-                    <div className="w-full space-y-6">
+                <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 print:p-0 print:overflow-visible">
+                    <div className="w-full space-y-6 print:space-y-0">
                         {children}
                     </div>
                 </div>

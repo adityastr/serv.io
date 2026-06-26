@@ -12,10 +12,13 @@ model User {
   nama       String
   email      String   @unique
   password   String
-  role       String   @default("teknisi") // admin | teknisi
-  created_at DateTime @default(now())
+  role                   String    @default("teknisi") // admin | teknisi
+  reset_password_token   String?   @db.VarChar(255)
+  reset_password_expires DateTime?
+  created_at             DateTime  @default(now())
 
   tiket_servis TiketServis[] @relation("TeknisiTiket")
+  activity_logs ActivityLog[]
 }
 
 model Customer {
@@ -46,7 +49,9 @@ model TiketServis {
   nomor_tiket    String   @unique
   perangkat_id   Int
   teknisi_id     Int?
-  keluhan        String
+  keluhan        String   @db.Text
+  kelengkapan    String?  @db.Text
+  foto_kondisi   Json?
   status         String   @default("diterima") // diterima, didiagnosis, menunggu_persetujuan, disetujui, dalam_perbaikan, selesai, diambil, dibatalkan
   created_at     DateTime @default(now())
 
@@ -72,6 +77,7 @@ model Diagnosis {
 model LogPerbaikan {
   id         Int      @id @default(autoincrement())
   tiket_id   Int
+  fase       String   @default("Diagnosis")
   catatan    String
   foto_url   String?  @db.LongText
   created_at DateTime @default(now())
@@ -79,14 +85,24 @@ model LogPerbaikan {
   tiket TiketServis @relation(fields: [tiket_id], references: [id], onDelete: Cascade)
 }
 
+model Brand {
+  id         Int      @id @default(autoincrement())
+  nama       String   @unique
+  created_at DateTime @default(now())
+
+  spareparts Sparepart[]
+}
+
 model Sparepart {
   id         Int      @id @default(autoincrement())
+  brand_id   Int?
   kategori   String   @default("Umum") // Laptop, Desktop, Printer, Umum
   nama       String
   stok       Int      @default(0)
   harga      Float
   created_at DateTime @default(now())
 
+  brand      Brand?   @relation(fields: [brand_id], references: [id], onDelete: Restrict)
   penggunaan_sparepart PenggunaanSparepart[]
 }
 
@@ -111,4 +127,15 @@ model Invoice {
   created_at      DateTime @default(now())
 
   tiket TiketServis @relation(fields: [tiket_id], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id         Int      @id @default(autoincrement())
+  user_id    Int?
+  user_nama  String
+  action     String
+  entity     String?
+  created_at DateTime @default(now())
+
+  user       User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
 }

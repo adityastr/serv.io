@@ -1,8 +1,10 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import api from "../../services/api";
-import { ArrowLeft, ArrowRight, MonitorSmartphone, User, Info, FileText, ClipboardList, PenTool, CheckCircle, Wrench, Package, FileCheck, Search, Save } from "lucide-react";
+import { ArrowLeft, Edit, Save, Trash2, CheckCircle2, XCircle, AlertCircle, Phone, MapPin, Search, Plus, Filter, MonitorSmartphone, User, Info, FileText, Wrench, ClipboardList, Send, Package, Camera, ExternalLink, MessageCircle, CheckCircle, ArrowRight, PenTool, FileCheck, AlertTriangle } from "lucide-react";
+import ConfirmModal from "../../components/ConfirmModal";
 
 
 const STATUS_LABELS = {
@@ -31,17 +33,59 @@ function formatRupiah(num) {
     return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
 }
 
+function generateWaLink(tiket) {
+    if (!tiket || !tiket.perangkat?.customer) return "#";
+    const customer = tiket.perangkat.customer;
+    let phone = customer.nomor_telepon || "";
+    if (phone.startsWith("0")) phone = "62" + phone.substring(1);
+    
+    let text = "";
+
+    if (tiket.status === "menunggu_persetujuan") {
+        text = `Halo kak ${customer.nama},
+
+Terkait perangkat *${tiket.perangkat.merek} ${tiket.perangkat.model}* dengan nomor tiket *${tiket.nomor_tiket}*, teknisi kami telah selesai melakukan pengecekan.
+
+*Hasil Diagnosis:*
+Masalah: ${tiket.diagnosis?.masalah || "Telah kami periksa (Mohon hubungi admin untuk detail)"}
+Solusi: ${tiket.diagnosis?.solusi || "Menunggu konfirmasi tindakan lebih lanjut"}
+
+*Estimasi Biaya:* ${formatRupiah(tiket.diagnosis?.estimasi_biaya || 0)}
+
+Apakah perbaikan ingin dilanjutkan? Mohon konfirmasinya ya kak. Terima kasih!`;
+    } else if (tiket.status === "selesai") {
+        const tagihanInfo = tiket.invoice ? `\n*Total Tagihan:* ${formatRupiah(tiket.invoice.total_biaya)}\n` : "";
+        text = `Halo kak ${customer.nama},
+
+Kabar gembira! Perbaikan perangkat *${tiket.perangkat.merek} ${tiket.perangkat.model}* milik kakak dengan nomor tiket *${tiket.nomor_tiket}* telah selesai dikerjakan oleh teknisi kami. 🎉
+${tagihanInfo}
+Perangkat sudah bisa diambil di toko pada jam operasional kami. Mohon tunjukkan nomor tiket ini saat pengambilan.
+
+Terima kasih telah mempercayakan perbaikan perangkat Anda kepada kami! 🙏`;
+    }
+
+    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}
+
 export default function TiketServisDetail() {
     const { id } = useParams();
-    const { isAdmin, isTeknisi } = useAuth();
+    const { isAdmin, isTeknisi, user } = useAuth();
     const [tiket, setTiket] = useState(null);
     const [loading, setLoading] = useState(true);
-
     const [selectedStatus, setSelectedStatus] = useState("");
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    const [catatanAdmin, setCatatanAdmin] = useState("");
+    
+    // Modals state
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isTakeOverModalOpen, setIsTakeOverModalOpen] = useState(false);
+    const [selectedImage, setSelectedImage] = useState(null);
 
     // Sparepart use form
     const [spareparts, setSpareparts] = useState([]);
     const [sparepartForm, setSparepartForm] = useState({ sparepart_id: "", jumlah: 1 });
+    const [sparepartSearchQuery, setSparepartSearchQuery] = useState("");
+    const [sparepartCategoryFilter, setSparepartCategoryFilter] = useState("");
     const [useSparepartLoading, setUseSparepartLoading] = useState(false);
 
     useEffect(() => {
@@ -61,15 +105,35 @@ export default function TiketServisDetail() {
         }
     }
 
-    async function handleStatusChange() {
+    function handleStatusChangeClick() {
         if (!selectedStatus) return;
-        if (!confirm(`Ubah status ke "${STATUS_LABELS[selectedStatus]?.label}"?`)) return;
+        setIsUpdatingStatus(true);
+    }
 
+    async function executeStatusChange() {
+        setIsUpdatingStatus(false);
         try {
-            await api.put(`/tiket-servis/${id}`, { status: selectedStatus });
+            const payload = { status: selectedStatus };
+            if (catatanAdmin && isAdmin) {
+                payload.catatan_admin = catatanAdmin;
+            }
+            await api.put(`/tiket-servis/${id}`, payload);
+            setCatatanAdmin("");
             fetchTiket();
         } catch (err) {
-            alert(err.response?.data?.message || "Gagal mengubah status");
+            toast.error(err.response?.data?.message || "Gagal mengubah status");
+        }
+    }
+
+    async function handleTakeOver() {
+        if (!user) return;
+        try {
+            await api.put(`/tiket-servis/${id}`, { teknisi_id: user.id });
+            toast.success("Berhasil mengambil alih tiket!");
+            setIsTakeOverModalOpen(false);
+            fetchTiket();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Gagal mengambil alih tiket");
         }
     }
 
@@ -89,7 +153,7 @@ export default function TiketServisDetail() {
             const res = await api.get("/sparepart");
             setSpareparts(res.data);
         } catch (err) {
-            alert(err.response?.data?.message || "Gagal menggunakan sparepart");
+            toast.error(err.response?.data?.message || "Gagal menggunakan sparepart");
         } finally {
             setUseSparepartLoading(false);
         }
@@ -114,6 +178,19 @@ export default function TiketServisDetail() {
     }
 
     const allowedTransitions = STATUS_TRANSITIONS[tiket.status] || [];
+    
+    // Admin bisa mengubah semua status kapan saja.
+    // Teknisi hanya bisa mengubah status JIKA tiket tersebut sudah di-assign kepadanya.
+    const isAssignedToMe = isTeknisi && tiket.teknisi?.id === user?.id;
+    const canUpdateStatus = isAdmin || isAssignedToMe;
+
+    // Teknisi hanya boleh mengubah status menjadi "Selesai" (saat tiket sedang "Dalam Perbaikan").
+    // Perubahan status lainnya, seperti "Disetujui" -> "Dalam Perbaikan" harus dilakukan oleh Admin.
+    let filteredTransitions = allowedTransitions;
+    if (isTeknisi && !isAdmin) {
+        const teknisiAllowed = ["selesai"];
+        filteredTransitions = allowedTransitions.filter(s => teknisiAllowed.includes(s));
+    }
 
     return (
         <div className="space-y-6 pb-10">
@@ -138,6 +215,17 @@ export default function TiketServisDetail() {
                         </p>
                     </div>
                 </div>
+                {isAdmin && (tiket.status === "menunggu_persetujuan" || tiket.status === "selesai") && (
+                    <a
+                        href={generateWaLink(tiket)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl text-sm font-bold shadow-md shadow-green-500/20 transition-all shrink-0"
+                    >
+                        <MessageCircle className="w-5 h-5" />
+                        Kabari via WhatsApp
+                    </a>
+                )}
             </div>
 
             {/* Info Cards */}
@@ -164,6 +252,15 @@ export default function TiketServisDetail() {
                                 <p className="text-slate-600">{tiket.perangkat?.jenis_perangkat} • SN: {tiket.perangkat?.serial_number || "-"}</p>
                             </div>
                         </div>
+                        {tiket.kelengkapan && (
+                            <div className="flex items-start gap-3">
+                                <Package className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                                <div>
+                                    <p className="text-slate-500 text-xs font-medium uppercase tracking-wider mb-0.5">Kelengkapan Perangkat</p>
+                                    <p className="text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1">{tiket.kelengkapan}</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -184,15 +281,77 @@ export default function TiketServisDetail() {
                             <ClipboardList className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
                             <div>
                                 <p className="text-slate-500 text-xs font-medium uppercase tracking-wider mb-0.5">Keluhan Pelanggan</p>
-                                <p className="text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1">{tiket.keluhan}</p>
+                                <p className="text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1 whitespace-pre-line">{tiket.keluhan}</p>
                             </div>
                         </div>
+                        {tiket.foto_kondisi && JSON.parse(tiket.foto_kondisi).length > 0 && (
+                            <div className="flex items-start gap-3">
+                                <Camera className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                                <div className="w-full">
+                                    <p className="text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">Foto Kondisi Awal</p>
+                                    <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                                        {JSON.parse(tiket.foto_kondisi).map((foto, idx) => {
+                                            const imageUrl = foto.startsWith('http') ? foto : `http://localhost:5000${foto}`;
+                                            return (
+                                                <button 
+                                                    key={idx} 
+                                                    onClick={() => setSelectedImage(imageUrl)}
+                                                    className="relative shrink-0 group outline-none focus:ring-4 focus:ring-blue-500/20 rounded-xl"
+                                                >
+                                                    <img 
+                                                        src={imageUrl} 
+                                                        alt={`Kondisi ${idx+1}`} 
+                                                        className="w-16 h-16 object-cover rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-105"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                                                        <Search className="w-4 h-4 text-white" />
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
 
+            {/* Ambil Alih Action */}
+            {isTeknisi && !tiket.teknisi && tiket.status !== "selesai" && tiket.status !== "diambil" && tiket.status !== "dibatalkan" && (
+                <div className="bg-amber-50/50 rounded-2xl p-6 shadow-sm border border-amber-200 mb-6">
+                    <div className="flex items-center gap-2 mb-2">
+                        <User className="w-5 h-5 text-amber-600" />
+                        <h2 className="text-base font-bold text-amber-900">Tiket Belum Ditangani</h2>
+                    </div>
+                    <p className="text-sm text-amber-700/80 mb-5">
+                        Tiket ini masih berada di antrean. Apakah kamu ingin mengambil alih dan menangani perbaikan perangkat ini?
+                    </p>
+                    <button
+                        onClick={() => setIsTakeOverModalOpen(true)}
+                        className="w-full sm:w-auto px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-amber-600/20 flex items-center justify-center gap-2"
+                    >
+                        <User className="w-4 h-4" />
+                        <span>Ambil Alih Tiket Ini</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Unassigned Warning for Admin */}
+            {isAdmin && !tiket.teknisi && tiket.status !== "selesai" && tiket.status !== "diambil" && tiket.status !== "dibatalkan" && (
+                <div className="bg-amber-50/50 border border-amber-200 rounded-2xl p-6 shadow-sm mb-6">
+                    <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="w-5 h-5 text-amber-600" />
+                        <h2 className="text-base font-bold text-amber-900">Perhatian: Tiket Belum Ditugaskan!</h2>
+                    </div>
+                    <p className="text-sm text-amber-700/80">
+                        Tiket ini belum memiliki teknisi penanggung jawab sehingga proses diagnosis dan perbaikan tidak bisa dimulai. Silakan pilih teknisi pada menu di panel "Informasi Tiket" di sebelah kanan.
+                    </p>
+                </div>
+            )}
+
             {/* Status Actions */}
-            {allowedTransitions.length > 0 && (
+            {canUpdateStatus && filteredTransitions.length > 0 && (
                 <div className="bg-blue-50/50 rounded-2xl p-6 shadow-sm border border-blue-100">
                     <div className="flex items-center gap-2 mb-2">
                         <CheckCircle className="w-5 h-5 text-blue-600" />
@@ -208,12 +367,12 @@ export default function TiketServisDetail() {
                             className="w-full sm:w-auto flex-1 px-4 py-3 bg-white border border-blue-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
                         >
                             <option value="" disabled>Pilih Status Selanjutnya...</option>
-                            {allowedTransitions.map((s) => (
+                            {filteredTransitions.map((s) => (
                                 <option key={s} value={s}>{STATUS_LABELS[s]?.label}</option>
                             ))}
                         </select>
                         <button
-                            onClick={handleStatusChange}
+                            onClick={handleStatusChangeClick}
                             disabled={!selectedStatus}
                             className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
@@ -221,6 +380,21 @@ export default function TiketServisDetail() {
                             <span>Simpan Status</span>
                         </button>
                     </div>
+
+                    {isAdmin && (selectedStatus === "dalam_perbaikan" || selectedStatus === "disetujui") && (
+                        <div className="mt-4 pt-4 border-t border-blue-100">
+                            <label className="block text-sm font-semibold text-blue-900 mb-2">
+                                Catatan Khusus untuk Teknisi (Opsional)
+                            </label>
+                            <textarea
+                                value={catatanAdmin}
+                                onChange={(e) => setCatatanAdmin(e.target.value)}
+                                placeholder="Misal: Customer minta tolong sekalian install aplikasi X..."
+                                rows={2}
+                                className="w-full px-4 py-3 bg-white border border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400 text-sm"
+                            />
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -241,15 +415,17 @@ export default function TiketServisDetail() {
                             <p className="text-slate-900 bg-slate-50 p-4 rounded-xl border border-slate-100 h-[calc(100%-1.5rem)]">{tiket.diagnosis.solusi}</p>
                         </div>
                     </div>
-                    <div className="mt-6 flex items-center justify-between bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                        <p className="text-blue-800 font-semibold text-sm">Estimasi Biaya Perbaikan</p>
-                        <p className="text-blue-900 font-bold text-xl">{formatRupiah(tiket.diagnosis.estimasi_biaya)}</p>
+                    <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        <div>
+                            <p className="text-blue-800 font-semibold text-sm">Estimasi Biaya Perbaikan</p>
+                            <p className="text-blue-900 font-bold text-xl">{formatRupiah(tiket.diagnosis.estimasi_biaya)}</p>
+                        </div>
                     </div>
                 </div>
             )}
 
             {/* Diagnosis Form Action */}
-            {isTeknisi && tiket.status === "diterima" && !tiket.diagnosis && (
+            {isTeknisi && isAssignedToMe && tiket.status === "diterima" && !tiket.diagnosis && (
                 <Link
                     to={`/tiket-servis/${id}/diagnosis`}
                     className="flex flex-col items-center justify-center p-8 bg-amber-50/50 border-2 border-dashed border-amber-200 rounded-2xl text-amber-700 hover:bg-amber-50 hover:border-amber-300 transition-all group"
@@ -270,24 +446,50 @@ export default function TiketServisDetail() {
                             <PenTool className="w-5 h-5 text-slate-700" />
                             <h2 className="text-base font-bold text-slate-900">Log Perbaikan</h2>
                         </div>
-                        <Link to={`/tiket-servis/${id}/log`} className="text-blue-600 text-sm font-semibold hover:text-blue-700 hover:underline">
-                            Lihat Semua
-                        </Link>
+                        <div className="flex items-center gap-3">
+                            {(isAdmin || isAssignedToMe) && (tiket.status === "dalam_perbaikan" || tiket.status === "diterima" || tiket.status === "didiagnosis") && (
+                                <Link to={`/tiket-servis/${id}/log`} className="text-emerald-600 text-sm font-semibold hover:text-emerald-700 hover:underline flex items-center gap-1">
+                                    <PenTool className="w-4 h-4" />
+                                    Tambah Log
+                                </Link>
+                            )}
+                            <Link to={`/tiket-servis/${id}/log`} className="text-blue-600 text-sm font-semibold hover:text-blue-700 hover:underline">
+                                Lihat Semua
+                            </Link>
+                        </div>
                     </div>
                     <div className="flex-1">
                         {tiket.log_perbaikan?.length > 0 ? (
                             <div className="space-y-4">
-                                {tiket.log_perbaikan.slice(0, 3).map((log, index) => (
-                                    <div key={log.id} className="relative pl-6 pb-4 last:pb-0">
-                                        {/* Timeline line */}
-                                        {index !== tiket.log_perbaikan.slice(0, 3).length - 1 && (
-                                            <div className="absolute left-[7px] top-6 bottom-[-8px] w-px bg-slate-200"></div>
-                                        )}
-                                        {/* Timeline dot */}
-                                        <div className="absolute left-0 top-1.5 w-4 h-4 rounded-full border-4 border-white bg-blue-500 shadow-sm"></div>
-                                        
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm text-sm">
-                                            <p className="text-slate-800 mb-2 whitespace-pre-line">{log.catatan}</p>
+                                {tiket.log_perbaikan.slice(0, 3).map((log, index) => {
+                                    let dotColor = "bg-blue-500";
+                                    let badgeColor = "bg-blue-100 text-blue-700";
+                                    let label = "Perbaikan";
+
+                                    if (log.fase === "Diagnosis") {
+                                        dotColor = "bg-amber-500";
+                                        badgeColor = "bg-amber-100 text-amber-700";
+                                        label = "Diagnosis";
+                                    } else if (log.fase === "Catatan Admin") {
+                                        dotColor = "bg-purple-500";
+                                        badgeColor = "bg-purple-100 text-purple-700";
+                                        label = "Admin";
+                                    }
+
+                                    return (
+                                        <div key={log.id} className="relative pl-6 pb-4 last:pb-0">
+                                            {/* Timeline line */}
+                                            {index !== tiket.log_perbaikan.slice(0, 3).length - 1 && (
+                                                <div className="absolute left-[7px] top-6 bottom-[-8px] w-px bg-slate-200"></div>
+                                            )}
+                                            {/* Timeline dot */}
+                                            <div className={`absolute left-0 top-1.5 w-4 h-4 rounded-full border-4 border-white shadow-sm ${dotColor}`}></div>
+                                            
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm text-sm">
+                                                <div className="mb-2">
+                                                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-md ${badgeColor}`}>{label}</span>
+                                                </div>
+                                                <p className="text-slate-800 mb-2 whitespace-pre-line">{log.catatan}</p>
                                             {log.foto_url && (
                                                 <div className="mb-3">
                                                     <a href={log.foto_url} target="_blank" rel="noreferrer" className="block w-fit">
@@ -299,12 +501,13 @@ export default function TiketServisDetail() {
                                                     </a>
                                                 </div>
                                             )}
-                                            <p className="text-xs font-medium text-slate-400">
+                                            <p className="text-xs font-medium text-slate-400 mt-2">
                                                 {new Date(log.created_at).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                             </p>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full py-8 text-center">
@@ -338,7 +541,7 @@ export default function TiketServisDetail() {
                                     <tbody className="divide-y divide-slate-100">
                                         {tiket.penggunaan_sparepart.map((ps) => (
                                             <tr key={ps.id} className="hover:bg-slate-50/50 transition-colors">
-                                                <td className="py-3 px-4 font-medium text-slate-900">{ps.sparepart?.nama}</td>
+                                                <td className="py-3 px-4 font-medium text-slate-900">{(ps.sparepart?.brand?.nama && ps.sparepart.brand.nama.toLowerCase() !== "lainnya" ? ps.sparepart.brand.nama + " " : "") + ps.sparepart?.nama}</td>
                                                 <td className="py-3 px-4 text-center text-slate-600">{ps.jumlah}</td>
                                                 <td className="py-3 px-4 text-right text-slate-600">{formatRupiah(ps.sparepart?.harga)}</td>
                                                 <td className="py-3 px-4 text-right font-semibold text-slate-900">{formatRupiah(ps.sparepart?.harga * ps.jumlah)}</td>
@@ -369,24 +572,55 @@ export default function TiketServisDetail() {
                                 <h3 className="text-sm font-bold text-indigo-900 mb-3">Tambah Penggunaan Suku Cadang</h3>
                                 <form onSubmit={handleUseSparepart} className="flex flex-col sm:flex-row gap-3 items-end">
                                     <div className="flex-1 w-full">
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Pilih Sparepart</label>
+                                        <label className="block text-xs font-semibold text-slate-600 mb-2">Pilih Sparepart</label>
+                                        
+                                        {/* Filter Controls */}
+                                        <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                                            <div className="relative flex-1">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <Search className="h-4 w-4 text-indigo-400" />
+                                                </div>
+                                                <input 
+                                                    type="text"
+                                                    placeholder="Ketik untuk mencari sparepart..."
+                                                    value={sparepartSearchQuery}
+                                                    onChange={(e) => setSparepartSearchQuery(e.target.value)}
+                                                    className="w-full pl-9 pr-4 py-2 bg-white/60 border border-indigo-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                                                />
+                                            </div>
+                                            <select
+                                                value={sparepartCategoryFilter}
+                                                onChange={(e) => setSparepartCategoryFilter(e.target.value)}
+                                                className="sm:w-1/3 px-3 py-2 bg-white/60 border border-indigo-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-slate-600"
+                                            >
+                                                <option value="">Semua Kategori</option>
+                                                {[...new Set(spareparts.flatMap(s => (s.kategori || "").split(",").map(k => k.trim())))].filter(Boolean).sort().map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
                                         <select
                                             value={sparepartForm.sparepart_id}
                                             onChange={(e) => setSparepartForm({ ...sparepartForm, sparepart_id: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                                            className="w-full px-4 py-2.5 bg-white border border-indigo-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700"
                                             required
                                         >
-                                            <option value="">Pilih Suku Cadang...</option>
+                                            <option value="">-- Hasil Pencarian ({
+                                                spareparts
+                                                    .filter((s) => s.stok > 0)
+                                                    .filter((s) => !sparepartCategoryFilter || (s.kategori && s.kategori.includes(sparepartCategoryFilter)))
+                                                    .filter((s) => ((s.brand?.nama && s.brand.nama.toLowerCase() !== "lainnya" ? s.brand.nama + " " : "") + s.nama).toLowerCase().includes(sparepartSearchQuery.toLowerCase()) || (s.kategori && s.kategori.toLowerCase().includes(sparepartSearchQuery.toLowerCase())))
+                                                    .length
+                                            }) --</option>
                                             {spareparts
-                                                .filter((s) => {
-                                                    if (s.stok <= 0) return false;
-                                                    const kat = (s.kategori || "").toLowerCase();
-                                                    const jp = (tiket.perangkat?.jenis_perangkat || "").toLowerCase();
-                                                    return kat.includes("umum") || kat.includes(jp);
-                                                })
+                                                .filter((s) => s.stok > 0)
+                                                .filter((s) => !sparepartCategoryFilter || (s.kategori && s.kategori.includes(sparepartCategoryFilter)))
+                                                .filter((s) => ((s.brand?.nama && s.brand.nama.toLowerCase() !== "lainnya" ? s.brand.nama + " " : "") + s.nama).toLowerCase().includes(sparepartSearchQuery.toLowerCase()) || (s.kategori && s.kategori.toLowerCase().includes(sparepartSearchQuery.toLowerCase())))
+                                                .sort((a, b) => ((a.brand?.nama && a.brand.nama.toLowerCase() !== "lainnya" ? a.brand.nama + " " : "") + a.nama).localeCompare((b.brand?.nama && b.brand.nama.toLowerCase() !== "lainnya" ? b.brand.nama + " " : "") + b.nama))
                                                 .map((s) => (
                                                 <option key={s.id} value={s.id}>
-                                                    {s.nama} (Sisa stok: {s.stok})
+                                                    {(s.brand?.nama && s.brand.nama.toLowerCase() !== "lainnya" ? s.brand.nama + " " : "") + s.nama} (Sisa stok: {s.stok}) - {formatRupiah(s.harga)}
                                                 </option>
                                             ))}
                                         </select>
@@ -440,6 +674,44 @@ export default function TiketServisDetail() {
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                isOpen={isUpdatingStatus}
+                title="Konfirmasi Perubahan Status"
+                message={`Apakah Anda yakin ingin mengubah status perbaikan menjadi "${STATUS_LABELS[selectedStatus]?.label}"?`}
+                onConfirm={executeStatusChange}
+                onCancel={() => setIsUpdatingStatus(false)}
+                confirmText="Ya, Ubah Status"
+            />
+            
+            <ConfirmModal
+                isOpen={isTakeOverModalOpen}
+                onCancel={() => setIsTakeOverModalOpen(false)}
+                onConfirm={handleTakeOver}
+                title="Ambil Alih Tiket"
+                message="Anda yakin ingin mengambil alih tiket ini? Status tiket akan berubah menjadi Didiagnosis dan Anda akan menjadi teknisi penanggung jawab."
+                confirmText="Ya, Ambil Alih"
+                confirmColor="amber"
+                icon={<Wrench className="w-6 h-6 text-amber-600" />}
+            />
+
+            {/* Image Preview Modal (Lightbox) */}
+            {selectedImage && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4" onClick={() => setSelectedImage(null)}>
+                    <button 
+                        className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors backdrop-blur-md"
+                        onClick={() => setSelectedImage(null)}
+                    >
+                        <XCircle className="w-8 h-8" />
+                    </button>
+                    <img 
+                        src={selectedImage} 
+                        alt="Preview" 
+                        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                        onClick={(e) => e.stopPropagation()} 
+                    />
+                </div>
+            )}
         </div>
     );
 }

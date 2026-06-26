@@ -13,7 +13,8 @@ async function adminDashboard(req, res) {
             tiketSelesai,
             sparepartHampirHabis,
             pendapatanBulanIni,
-            tiketBerdasarkanStatus
+            tiketBerdasarkanStatus,
+            recentActivities
         ] = await Promise.all([
             prisma.customer.count(),
             prisma.perangkat.count(),
@@ -30,6 +31,7 @@ async function adminDashboard(req, res) {
             prisma.sparepart.findMany({
                 where: { stok: { lte: 5 } },
                 orderBy: { stok: "asc" },
+                take: 8, // Batasi 8 item agar dashboard tidak memanjang
             }),
             prisma.invoice.aggregate({
                 where: { created_at: { gte: startOfMonth } },
@@ -38,6 +40,10 @@ async function adminDashboard(req, res) {
             prisma.tiketServis.groupBy({
                 by: ['status'],
                 _count: { _all: true }
+            }),
+            prisma.activityLog.findMany({
+                orderBy: { created_at: "desc" },
+                take: 10,
             })
         ]);
 
@@ -54,7 +60,8 @@ async function adminDashboard(req, res) {
             tiketSelesai,
             sparepartHampirHabis,
             pendapatanBulanIni: pendapatanBulanIni._sum.total_biaya || 0,
-            chartData
+            chartData,
+            recentActivities
         });
     } catch (error) {
         return res.status(500).json({ message: "Terjadi kesalahan", error: error.message });
@@ -66,7 +73,7 @@ async function teknisiDashboard(req, res) {
     try {
         const teknisiId = req.user.id;
 
-        const [tiketDitugaskan, tiketTersedia, menungguDiagnosis, dalamPerbaikan, tiketSelesai, tiketBerdasarkanStatus] =
+        const [tiketDitugaskan, tiketTersedia, menungguDiagnosis, dalamPerbaikan, tiketSelesai, tiketBerdasarkanStatus, activeTickets] =
             await Promise.all([
                 prisma.tiketServis.count({
                     where: { 
@@ -96,6 +103,19 @@ async function teknisiDashboard(req, res) {
                         status: { notIn: ["selesai", "diambil", "dibatalkan"] }
                     },
                     _count: { _all: true }
+                }),
+                prisma.tiketServis.findMany({
+                    where: { 
+                        teknisi_id: teknisiId,
+                        status: { notIn: ["selesai", "diambil", "dibatalkan"] }
+                    },
+                    include: {
+                        perangkat: {
+                            include: { customer: true }
+                        }
+                    },
+                    orderBy: { created_at: 'desc' },
+                    take: 5
                 })
             ]);
 
@@ -111,7 +131,8 @@ async function teknisiDashboard(req, res) {
             menungguDiagnosis,
             dalamPerbaikan,
             tiketSelesai,
-            chartData
+            chartData,
+            activeTickets
         });
     } catch (error) {
         return res.status(500).json({ message: "Terjadi kesalahan", error: error.message });
@@ -132,4 +153,35 @@ async function teknisiList(req, res) {
     }
 }
 
-module.exports = { adminDashboard, teknisiDashboard, teknisiList };
+async function exportActivities(req, res) {
+    try {
+        const dateParam = req.query.date || new Date().toISOString().split("T")[0];
+        
+        // Buat rentang waktu untuk hari yang dipilih (00:00:00 sampai 23:59:59)
+        const startDate = new Date(`${dateParam}T00:00:00.000Z`);
+        const endDate = new Date(`${dateParam}T23:59:59.999Z`);
+
+        const activities = await prisma.activityLog.findMany({
+            where: {
+                created_at: {
+                    gte: startDate,
+                    lte: endDate,
+                }
+            },
+            orderBy: { created_at: "asc" },
+        });
+
+        // Convert to CSV
+        const header = "ID,User ID,User Nama,Action,Created At\n";
+        const rows = activities.map(a => `${a.id},${a.user_id},"${a.user_nama}","${a.action.replace(/"/g, '""')}","${a.created_at.toISOString()}"`).join("\n");
+        const csv = header + rows;
+
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=activity_log_${dateParam}.csv`);
+        return res.send(csv);
+    } catch (error) {
+        return res.status(500).json({ message: "Terjadi kesalahan", error: error.message });
+    }
+}
+
+module.exports = { adminDashboard, teknisiDashboard, teknisiList, exportActivities };

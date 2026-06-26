@@ -23,6 +23,14 @@ async function create(req, res) {
             return res.status(403).json({ message: "Anda tidak berhak mendiagnosis tiket ini" });
         }
 
+        // Pastikan teknisi sudah mengisi log diagnosis
+        const logDiagnosis = await prisma.logPerbaikan.findFirst({
+            where: { tiket_id: Number(tiket_id), fase: "Diagnosis" }
+        });
+        if (!logDiagnosis) {
+            return res.status(400).json({ message: "Proteksi: Anda harus menambahkan minimal satu Log Perbaikan (Catatan Diagnosis) terlebih dahulu sebelum menyimpan hasil akhir diagnosis." });
+        }
+
         // Cek apakah sudah ada diagnosis
         const existing = await prisma.diagnosis.findUnique({ where: { tiket_id: Number(tiket_id) } });
         if (existing) {

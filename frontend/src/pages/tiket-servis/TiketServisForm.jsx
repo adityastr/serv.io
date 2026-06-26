@@ -1,11 +1,13 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
-import { ArrowLeft, Save, MonitorSmartphone, User, MessageSquare } from "lucide-react";
+import { ArrowLeft, Save, MonitorSmartphone, User, MessageSquare, Package, Camera } from "lucide-react";
 
 export default function TiketServisForm() {
     const navigate = useNavigate();
-    const [form, setForm] = useState({ perangkat_id: "", teknisi_id: "", keluhan: "" });
+    const [form, setForm] = useState({ perangkat_id: "", teknisi_id: "", keluhan: "", kelengkapan: "" });
+    const [fotos, setFotos] = useState([]);
     const [perangkats, setPerangkats] = useState([]);
     const [teknisis, setTeknisis] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -17,7 +19,7 @@ export default function TiketServisForm() {
                 setPerangkats(perangkatRes.data);
                 setTeknisis(teknisiRes.data);
             })
-            .catch(() => alert("Gagal memuat data"))
+            .catch(() => toast.error("Gagal memuat data"))
             .finally(() => setFetching(false));
     }, []);
 
@@ -26,10 +28,22 @@ export default function TiketServisForm() {
         setLoading(true);
 
         try {
-            await api.post("/tiket-servis", form);
+            const formData = new FormData();
+            formData.append("perangkat_id", form.perangkat_id);
+            if (form.teknisi_id) formData.append("teknisi_id", form.teknisi_id);
+            formData.append("keluhan", form.keluhan);
+            if (form.kelengkapan) formData.append("kelengkapan", form.kelengkapan);
+            
+            fotos.forEach(foto => {
+                formData.append("foto_kondisi", foto);
+            });
+
+            await api.post("/tiket-servis", formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
             navigate("/tiket-servis");
         } catch (err) {
-            alert(err.response?.data?.message || "Terjadi kesalahan");
+            toast.error(err.response?.data?.message || "Terjadi kesalahan");
         } finally {
             setLoading(false);
         }
@@ -112,6 +126,56 @@ export default function TiketServisForm() {
                         placeholder="Deskripsikan keluhan customer secara detail..."
                         required
                     />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                        <Package className="w-4 h-4 text-slate-400" />
+                        Kelengkapan Perangkat
+                    </label>
+                    <textarea
+                        value={form.kelengkapan}
+                        onChange={(e) => setForm({ ...form, kelengkapan: e.target.value })}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white outline-none transition-all resize-none"
+                        rows={2}
+                        placeholder="Contoh: Bawa charger ori, tas laptop hitam, tanpa box..."
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                        <Camera className="w-4 h-4 text-slate-400" />
+                        Foto Kondisi Perangkat (Maks 5)
+                    </label>
+                    <div className="flex flex-col gap-3">
+                        <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={(e) => {
+                                if (e.target.files.length > 5) {
+                                    toast.error("Maksimal 5 foto!");
+                                    e.target.value = "";
+                                    return;
+                                }
+                                setFotos(Array.from(e.target.files));
+                            }}
+                            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all border border-slate-200 rounded-xl"
+                        />
+                        {fotos.length > 0 && (
+                            <div className="flex gap-3 overflow-x-auto py-2">
+                                {fotos.map((foto, idx) => (
+                                    <div key={idx} className="relative shrink-0">
+                                        <img 
+                                            src={URL.createObjectURL(foto)} 
+                                            alt={`Preview ${idx+1}`} 
+                                            className="w-20 h-20 object-cover rounded-lg border border-slate-200 shadow-sm"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-8">

@@ -22,6 +22,13 @@ api.interceptors.response.use(
             localStorage.removeItem("user");
             window.location.href = "/login";
         }
+
+        // Tangkap error validasi dari backend dan format pesannya agar UI bisa langsung menampilkannya di Toast
+        if (error.response?.status === 400 && error.response.data?.errors) {
+            const errorList = error.response.data.errors.map((e) => e.message).join("\n• ");
+            error.response.data.message = `Data tidak sesuai:\n• ${errorList}`;
+        }
+
         return Promise.reject(error);
     }
 );

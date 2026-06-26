@@ -1,11 +1,16 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import api from "../../services/api";
-import { Plus, Edit2, Trash2, MonitorSmartphone } from "lucide-react";
+import { Plus, Edit2, Trash2, MonitorSmartphone, Search, Filter } from "lucide-react";
+import ConfirmModal from "../../components/ConfirmModal";
 
 export default function PerangkatList() {
     const [perangkats, setPerangkats] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [jenisFilter, setJenisFilter] = useState("");
 
     useEffect(() => {
         fetchPerangkats();
@@ -22,16 +27,35 @@ export default function PerangkatList() {
         }
     }
 
-    async function handleDelete(id, nama) {
-        if (!confirm(`Hapus perangkat "${nama}"?`)) return;
+    function handleDeleteClick(perangkat) {
+        setDeleteTarget(perangkat);
+    }
 
+    async function executeDelete() {
+        if (!deleteTarget) return;
         try {
-            await api.delete(`/perangkat/${id}`);
-            setPerangkats(perangkats.filter((p) => p.id !== id));
+            await api.delete(`/perangkat/${deleteTarget.id}`);
+            setPerangkats(perangkats.filter((p) => p.id !== deleteTarget.id));
+            setDeleteTarget(null);
         } catch (err) {
-            alert(err.response?.data?.message || "Gagal menghapus");
+            toast.error(err.response?.data?.message || "Gagal menghapus");
+            setDeleteTarget(null);
         }
     }
+
+    const filteredPerangkats = perangkats.filter((p) => {
+        const matchesSearch = 
+            p.merek.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            p.model.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            p.customer?.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.serial_number && p.serial_number.toLowerCase().includes(searchQuery.toLowerCase()));
+        
+        const matchesJenis = jenisFilter ? p.jenis_perangkat === jenisFilter : true;
+        
+        return matchesSearch && matchesJenis;
+    });
+
+    const uniqueJenis = [...new Set(perangkats.map(p => p.jenis_perangkat))];
 
     return (
         <div className="space-y-6">
@@ -49,19 +73,46 @@ export default function PerangkatList() {
                 </Link>
             </div>
 
+            {/* Filter & Search Bar */}
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                        type="text"
+                        placeholder="Cari berdasarkan nama customer, merek, model, atau SN..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white outline-none transition-all text-sm"
+                    />
+                </div>
+                <div className="relative min-w-[200px]">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <select
+                        value={jenisFilter}
+                        onChange={(e) => setJenisFilter(e.target.value)}
+                        className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white outline-none transition-all text-sm appearance-none cursor-pointer"
+                    >
+                        <option value="">Semua Jenis Perangkat</option>
+                        {uniqueJenis.map((jenis) => (
+                            <option key={jenis} value={jenis}>{jenis}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                 <div className="overflow-x-auto">
                     {loading ? (
                         <div className="flex items-center justify-center py-20">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         </div>
-                    ) : perangkats.length === 0 ? (
+                    ) : filteredPerangkats.length === 0 ? (
                         <div className="text-center py-16 px-4">
                             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4 text-slate-400">
-                                <MonitorSmartphone className="w-8 h-8" />
+                                <Search className="w-8 h-8" />
                             </div>
-                            <h3 className="text-lg font-semibold text-slate-900">Tidak ada perangkat</h3>
-                            <p className="text-slate-500 mt-1 max-w-sm mx-auto">Anda belum menambahkan data perangkat satupun.</p>
+                            <h3 className="text-lg font-semibold text-slate-900">Perangkat tidak ditemukan</h3>
+                            <p className="text-slate-500 mt-1 max-w-sm mx-auto">Coba gunakan kata kunci pencarian atau filter yang berbeda.</p>
                         </div>
                     ) : (
                         <table className="w-full text-sm text-left whitespace-nowrap">
@@ -77,7 +128,7 @@ export default function PerangkatList() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {perangkats.map((p, i) => (
+                                {filteredPerangkats.map((p, i) => (
                                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors group">
                                         <td className="px-6 py-4 text-slate-500">{i + 1}</td>
                                         <td className="px-6 py-4 font-medium text-slate-900">{p.customer?.nama}</td>
@@ -95,7 +146,7 @@ export default function PerangkatList() {
                                                     <Edit2 className="w-4 h-4" />
                                                 </Link>
                                                 <button
-                                                    onClick={() => handleDelete(p.id, p.model)}
+                                                    onClick={() => handleDeleteClick(p)}
                                                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                     title="Hapus"
                                                 >
@@ -110,6 +161,16 @@ export default function PerangkatList() {
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                isOpen={!!deleteTarget}
+                title="Hapus Perangkat"
+                message={`Apakah Anda yakin ingin menghapus perangkat "${deleteTarget?.model}"?`}
+                onConfirm={executeDelete}
+                onCancel={() => setDeleteTarget(null)}
+                confirmText="Hapus"
+                isDanger={true}
+            />
         </div>
     );
 }

@@ -16,3 +16,14 @@
 body {
     @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 1cm;
+  }
+  
+  body {
+    background-color: white !important;
+  }
+}

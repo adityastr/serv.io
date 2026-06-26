@@ -9,9 +9,14 @@ const router = express.Router();
 router.use(authenticate);
 
 const sparepartValidation = [
-    body("nama").notEmpty().withMessage("Nama sparepart wajib diisi"),
-    body("stok").isNumeric().withMessage("Stok harus berupa angka"),
-    body("harga").isNumeric().withMessage("Harga harus berupa angka"),
+    body("nama")
+        .notEmpty().withMessage("Nama sparepart wajib diisi")
+        .isLength({ min: 3, max: 100 }).withMessage("Nama maksimal 100 karakter")
+        .trim(),
+    body("stok")
+        .isInt({ min: 0 }).withMessage("Stok harus berupa angka positif"),
+    body("harga")
+        .isInt({ min: 0 }).withMessage("Harga harus berupa angka positif"),
 ];
 
 const useValidation = [

@@ -29,7 +29,8 @@ async function track(req, res) {
                 perangkat: { include: { customer: true } },
                 teknisi: { select: { nama: true } },
                 diagnosis: { select: { masalah: true, solusi: true, estimasi_biaya: true } },
-                log_perbaikan: { orderBy: { created_at: "desc" } }
+                log_perbaikan: { orderBy: { created_at: "desc" } },
+                invoice: true
             },
             orderBy: { created_at: "desc" },
         });
@@ -45,6 +46,8 @@ async function track(req, res) {
             jenis_perangkat: t.perangkat.jenis_perangkat,
             status: t.status,
             keluhan: t.keluhan,
+            kelengkapan: t.kelengkapan,
+            foto_kondisi: t.foto_kondisi,
             teknisi: t.teknisi?.nama || "Belum ditugaskan",
             diagnosis: t.diagnosis
                 ? {
@@ -54,6 +57,9 @@ async function track(req, res) {
                 }
                 : null,
             log_perbaikan: t.log_perbaikan,
+            invoice: t.invoice
+                ? { total_biaya: t.invoice.total_biaya }
+                : null,
             created_at: t.created_at,
         }));
 

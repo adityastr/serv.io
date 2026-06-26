@@ -1,12 +1,15 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import api from "../../services/api";
 import { Search, Plus, Edit2, Trash2, Users } from "lucide-react";
+import ConfirmModal from "../../components/ConfirmModal";
 
 export default function CustomerList() {
     const [customers, setCustomers] = useState([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
+    const [deleteTarget, setDeleteTarget] = useState(null);
 
     useEffect(() => {
         fetchCustomers();
@@ -24,14 +27,19 @@ export default function CustomerList() {
         }
     }
 
-    async function handleDelete(id, nama) {
-        if (!confirm(`Hapus customer "${nama}"?`)) return;
+    function handleDeleteClick(customer) {
+        setDeleteTarget(customer);
+    }
 
+    async function executeDelete() {
+        if (!deleteTarget) return;
         try {
-            await api.delete(`/customer/${id}`);
-            setCustomers(customers.filter((c) => c.id !== id));
+            await api.delete(`/customer/${deleteTarget.id}`);
+            setCustomers(customers.filter((c) => c.id !== deleteTarget.id));
+            setDeleteTarget(null);
         } catch (err) {
-            alert(err.response?.data?.message || "Gagal menghapus");
+            toast.error(err.response?.data?.message || "Gagal menghapus");
+            setDeleteTarget(null);
         }
     }
 
@@ -127,7 +135,7 @@ export default function CustomerList() {
                                                     <Edit2 className="w-4 h-4" />
                                                 </Link>
                                                 <button
-                                                    onClick={() => handleDelete(c.id, c.nama)}
+                                                    onClick={() => handleDeleteClick(c)}
                                                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                     title="Hapus"
                                                 >
@@ -142,6 +150,16 @@ export default function CustomerList() {
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                isOpen={!!deleteTarget}
+                title="Hapus Customer"
+                message={`Apakah Anda yakin ingin menghapus customer "${deleteTarget?.nama}"? Data yang sudah dihapus tidak dapat dikembalikan.`}
+                onConfirm={executeDelete}
+                onCancel={() => setDeleteTarget(null)}
+                confirmText="Hapus"
+                isDanger={true}
+            />
         </div>
     );
 }

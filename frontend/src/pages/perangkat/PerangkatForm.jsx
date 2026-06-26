@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
@@ -16,6 +17,7 @@ export default function PerangkatForm() {
         serial_number: "",
     });
     const [customers, setCustomers] = useState([]);
+    const [riwayat, setRiwayat] = useState([]);
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
 
@@ -35,9 +37,10 @@ export default function PerangkatForm() {
                         model: p.model,
                         serial_number: p.serial_number || "",
                     });
+                    setRiwayat(p.tiket_servis || []);
                 }
             })
-            .catch(() => alert("Gagal memuat data"))
+            .catch(() => toast.error("Gagal memuat data"))
             .finally(() => setFetching(false));
     }, [id, isEdit]);
 
@@ -53,7 +56,7 @@ export default function PerangkatForm() {
             }
             navigate("/perangkat");
         } catch (err) {
-            alert(err.response?.data?.message || "Terjadi kesalahan");
+            toast.error(err.response?.data?.message || "Terjadi kesalahan");
         } finally {
             setLoading(false);
         }
@@ -122,8 +125,10 @@ export default function PerangkatForm() {
                         >
                             <option value="">Pilih Jenis</option>
                             <option value="Laptop">Laptop</option>
-                            <option value="Desktop">Desktop</option>
+                            <option value="Desktop PC">Desktop PC</option>
                             <option value="Printer">Printer</option>
+                            <option value="Penyimpanan (HDD/SSD)">Penyimpanan (HDD/SSD/Flashdisk)</option>
+                            <option value="Aksesoris (Mouse/Keyboard)">Aksesoris (Mouse/Keyboard dll)</option>
                             <option value="Lainnya">Lainnya</option>
                         </select>
                     </div>
@@ -197,6 +202,59 @@ export default function PerangkatForm() {
                     </button>
                 </div>
             </form>
+
+            {/* Riwayat Servis Perangkat (Admin POV) */}
+            {isEdit && riwayat.length > 0 && (
+                <div className="mt-8">
+                    <h2 className="text-xl font-bold text-slate-900 mb-4 tracking-tight flex items-center gap-2">
+                        <MonitorSmartphone className="w-5 h-5 text-indigo-500" />
+                        Histori Perbaikan Perangkat Ini
+                    </h2>
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-600">
+                                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                                    <tr>
+                                        <th className="px-6 py-4">Nomor Tiket</th>
+                                        <th className="px-6 py-4">Tanggal Masuk</th>
+                                        <th className="px-6 py-4">Keluhan</th>
+                                        <th className="px-6 py-4">Status</th>
+                                        <th className="px-6 py-4">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {riwayat.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map((tiket) => (
+                                        <tr key={tiket.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-6 py-4 font-semibold text-slate-900">{tiket.nomor_tiket}</td>
+                                            <td className="px-6 py-4">{new Date(tiket.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                                            <td className="px-6 py-4 truncate max-w-[200px]" title={tiket.keluhan}>{tiket.keluhan}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider ${
+                                                    tiket.status === 'selesai' || tiket.status === 'diambil' 
+                                                        ? 'bg-emerald-100 text-emerald-700' 
+                                                        : tiket.status === 'dibatalkan'
+                                                            ? 'bg-rose-100 text-rose-700'
+                                                            : 'bg-amber-100 text-amber-700'
+                                                }`}>
+                                                    {tiket.status.replace("_", " ")}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <button
+                                                    onClick={() => navigate(`/tiket-servis/${tiket.id}`)}
+                                                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium rounded-lg transition-colors text-xs"
+                                                >
+                                                    Lihat Detail
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

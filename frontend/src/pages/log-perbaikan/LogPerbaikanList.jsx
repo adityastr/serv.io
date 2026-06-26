@@ -1,12 +1,16 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
 import api from "../../services/api";
 import { ArrowLeft, Plus, Image as ImageIcon, X, History, ClipboardList } from "lucide-react";
 
 export default function LogPerbaikanList() {
+    const { user, isAdmin, isTeknisi } = useAuth();
     const { id } = useParams();
     const navigate = useNavigate();
     const [logs, setLogs] = useState([]);
+    const [tiket, setTiket] = useState(null);
     const [catatan, setCatatan] = useState("");
     const [fotoUrl, setFotoUrl] = useState("");
     const [fotoName, setFotoName] = useState("");
@@ -20,8 +24,12 @@ export default function LogPerbaikanList() {
 
     async function fetchLogs() {
         try {
-            const res = await api.get(`/log-perbaikan/${id}`);
-            setLogs(res.data);
+            const [logsRes, tiketRes] = await Promise.all([
+                api.get(`/log-perbaikan/${id}`),
+                api.get(`/tiket-servis/${id}`)
+            ]);
+            setLogs(logsRes.data);
+            setTiket(tiketRes.data);
         } catch (err) {
             console.error(err);
         } finally {
@@ -35,13 +43,13 @@ export default function LogPerbaikanList() {
 
         // Check if file is an image
         if (!file.type.startsWith("image/")) {
-            alert("Harap pilih file gambar");
+            toast.error("Harap pilih file gambar");
             return;
         }
 
-        // Check size (max 2MB)
-        if (file.size > 2 * 1024 * 1024) {
-            alert("Ukuran gambar maksimal 2MB");
+        // Check size (max 30MB)
+        if (file.size > 30 * 1024 * 1024) {
+            toast.error("Ukuran gambar maksimal 30MB");
             return;
         }
 
@@ -76,7 +84,7 @@ export default function LogPerbaikanList() {
             removePhoto();
             fetchLogs();
         } catch (err) {
-            alert(err.response?.data?.message || "Gagal menambahkan log");
+            toast.error(err.response?.data?.message || "Gagal menambahkan log");
         } finally {
             setSubmitting(false);
         }
@@ -101,9 +109,10 @@ export default function LogPerbaikanList() {
             </div>
 
             {/* Form tambah log */}
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
-                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+            {isTeknisi && tiket?.teknisi_id === user?.id && (
+                <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative overflow-hidden mb-6">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
                     <Plus className="w-5 h-5 text-blue-500" />
                     <h2 className="text-base font-bold text-slate-900">Tambah Catatan Baru</h2>
                 </div>
@@ -131,7 +140,7 @@ export default function LogPerbaikanList() {
                             >
                                 <ImageIcon className="w-8 h-8 mb-2 text-slate-400" />
                                 <span className="text-sm font-medium">Klik untuk upload foto</span>
-                                <span className="text-xs text-slate-400 mt-1">Maksimal 2MB (JPG, PNG)</span>
+                                <span className="text-xs text-slate-400 mt-1">Maksimal 30MB (JPG, PNG)</span>
                                 <input 
                                     type="file" 
                                     accept="image/*" 
@@ -176,6 +185,7 @@ export default function LogPerbaikanList() {
                     </button>
                 </div>
             </form>
+            )}
 
             {/* Daftar log */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -196,16 +206,34 @@ export default function LogPerbaikanList() {
                         </div>
                     ) : (
                         <div className="space-y-6">
-                            {logs.map((log, index) => (
+                            {logs.map((log, index) => {
+                                let dotColor = "bg-blue-500";
+                                let badgeColor = "bg-blue-100 text-blue-700";
+                                let label = "Perbaikan";
+
+                                if (log.fase === "Diagnosis") {
+                                    dotColor = "bg-amber-500";
+                                    badgeColor = "bg-amber-100 text-amber-700";
+                                    label = "Diagnosis";
+                                } else if (log.fase === "Catatan Admin") {
+                                    dotColor = "bg-purple-500";
+                                    badgeColor = "bg-purple-100 text-purple-700";
+                                    label = "Admin";
+                                }
+
+                                return (
                                 <div key={log.id} className="relative pl-8 pb-6 last:pb-0">
                                     {/* Timeline line */}
                                     {index !== logs.length - 1 && (
                                         <div className="absolute left-[11px] top-6 bottom-[-16px] w-px bg-slate-200"></div>
                                     )}
                                     {/* Timeline dot */}
-                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full border-4 border-white bg-blue-500 shadow-sm"></div>
+                                    <div className={`absolute left-0 top-1 w-6 h-6 rounded-full border-4 border-white shadow-sm ${dotColor}`}></div>
                                     
                                     <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 shadow-sm">
+                                        <div className="mb-3">
+                                            <span className={`text-xs uppercase font-bold px-2 py-0.5 rounded-md ${badgeColor}`}>{label}</span>
+                                        </div>
                                         <p className="text-slate-800 text-sm whitespace-pre-line mb-3">{log.catatan}</p>
                                         
                                         {log.foto_url && (
@@ -235,7 +263,8 @@ export default function LogPerbaikanList() {
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

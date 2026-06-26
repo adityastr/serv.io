@@ -4,6 +4,7 @@ const prisma = require("../config/database");
 async function getAll(req, res) {
     try {
         const spareparts = await prisma.sparepart.findMany({
+            include: { brand: true },
             orderBy: { created_at: "desc" },
         });
 
@@ -16,10 +17,21 @@ async function getAll(req, res) {
 // Menambahkan sparepart baru
 async function create(req, res) {
     try {
-        const { nama, kategori, stok, harga } = req.body;
+        const { nama, kategori, stok, harga, brand_id } = req.body;
+
+        if (!brand_id) {
+            return res.status(400).json({ message: "Brand wajib dipilih" });
+        }
 
         const sparepart = await prisma.sparepart.create({
-            data: { nama, kategori: kategori || "Umum", stok: Number(stok), harga: Number(harga) },
+            data: { 
+                nama, 
+                brand_id: Number(brand_id),
+                kategori: kategori || "Umum", 
+                stok: Number(stok), 
+                harga: Number(harga) 
+            },
+            include: { brand: true }
         });
 
         return res.status(201).json({ message: "Sparepart berhasil ditambahkan", data: sparepart });
@@ -31,7 +43,7 @@ async function create(req, res) {
 // Memperbarui data sparepart
 async function update(req, res) {
     try {
-        const { nama, kategori, stok, harga } = req.body;
+        const { nama, kategori, stok, harga, brand_id } = req.body;
         const id = Number(req.params.id);
 
         const existing = await prisma.sparepart.findUnique({ where: { id } });
@@ -43,10 +55,12 @@ async function update(req, res) {
             where: { id },
             data: {
                 nama: nama || undefined,
+                brand_id: brand_id ? Number(brand_id) : undefined,
                 kategori: kategori || undefined,
                 stok: stok !== undefined ? Number(stok) : undefined,
                 harga: harga !== undefined ? Number(harga) : undefined,
             },
+            include: { brand: true }
         });
 
         return res.json({ message: "Sparepart berhasil diperbarui", data: sparepart });

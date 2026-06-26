@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
@@ -7,8 +8,19 @@ export default function InvoiceForm() {
     const navigate = useNavigate();
     const [form, setForm] = useState({ tiket_id: "", biaya_jasa: "" });
     const [tikets, setTikets] = useState([]);
+    const [selectedTiketData, setSelectedTiketData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
+
+    useEffect(() => {
+        if (form.tiket_id) {
+            api.get(`/tiket-servis/${form.tiket_id}`)
+                .then(res => setSelectedTiketData(res.data))
+                .catch(err => toast.error("Gagal mengambil detail tiket"));
+        } else {
+            setSelectedTiketData(null);
+        }
+    }, [form.tiket_id]);
 
     useEffect(() => {
         api
@@ -18,7 +30,7 @@ export default function InvoiceForm() {
                 // This assumes API doesn't return invoices in this endpoint or we just filter by status for simplicity
                 setTikets(res.data.filter((t) => ["selesai", "diambil"].includes(t.status)));
             })
-            .catch(() => alert("Gagal memuat data"))
+            .catch(() => toast.error("Gagal memuat data"))
             .finally(() => setFetching(false));
     }, []);
 
@@ -30,7 +42,7 @@ export default function InvoiceForm() {
             await api.post("/invoice", form);
             navigate("/invoice");
         } catch (err) {
-            alert(err.response?.data?.message || "Terjadi kesalahan");
+            toast.error(err.response?.data?.message || "Terjadi kesalahan");
         } finally {
             setLoading(false);
         }
@@ -43,6 +55,8 @@ export default function InvoiceForm() {
             </div>
         );
     }
+
+    const totalSparepart = selectedTiketData?.penggunaan_sparepart?.reduce((acc, p) => acc + (p.sparepart.harga * p.jumlah), 0) || 0;
 
     return (
         <div className="w-full space-y-6 pb-10">
@@ -85,6 +99,32 @@ export default function InvoiceForm() {
                             <p>Tidak ada tiket yang siap untuk dibuatkan invoice (status Selesai/Diambil).</p>
                         </div>
                     )}
+
+                    {selectedTiketData && (
+                        <div className="mt-4 p-5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                            <h3 className="font-bold text-slate-800 mb-2">Detail Perbaikan & Suku Cadang</h3>
+                            <p className="text-slate-600 mb-1"><span className="font-medium text-slate-700">Diagnosis/Solusi:</span> {selectedTiketData.diagnosis?.masalah || "-"} / {selectedTiketData.diagnosis?.solusi || "-"}</p>
+                            <p className="text-slate-600 mb-3"><span className="font-medium text-slate-700">Estimasi Awal:</span> Rp {selectedTiketData.diagnosis?.estimasi_biaya || 0}</p>
+                            
+                            {selectedTiketData.penggunaan_sparepart?.length > 0 ? (
+                                <div className="space-y-2 mt-4 pt-3 border-t border-slate-200">
+                                    <p className="font-semibold text-slate-700 mb-2">Suku Cadang Digunakan:</p>
+                                    {selectedTiketData.penggunaan_sparepart.map((p, i) => (
+                                        <div key={i} className="flex justify-between items-center text-slate-600">
+                                            <span>{p.sparepart.nama} (x{p.jumlah})</span>
+                                            <span>Rp {p.sparepart.harga * p.jumlah}</span>
+                                        </div>
+                                    ))}
+                                    <div className="flex justify-between items-center font-bold text-slate-800 pt-3 border-t border-slate-200 mt-2">
+                                        <span>Total Suku Cadang</span>
+                                        <span>Rp {totalSparepart}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-amber-600 italic mt-2 border-t border-slate-200 pt-2">Tidak ada suku cadang yang digunakan.</p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div>
@@ -106,6 +146,15 @@ export default function InvoiceForm() {
                         Biaya sparepart akan dihitung secara otomatis berdasarkan suku cadang yang digunakan.
                     </p>
                 </div>
+
+                {selectedTiketData && (
+                    <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 flex flex-col sm:flex-row justify-between sm:items-center gap-2 mt-6">
+                        <span className="font-bold text-emerald-800 uppercase tracking-wider text-sm">Estimasi Grand Total</span>
+                        <span className="font-black text-2xl text-emerald-700">
+                            Rp {Number(form.biaya_jasa || 0) + totalSparepart}
+                        </span>
+                    </div>
+                )}
 
                 <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-8">
                     <button

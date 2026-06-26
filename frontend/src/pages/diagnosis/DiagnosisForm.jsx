@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
@@ -17,7 +18,7 @@ export default function DiagnosisForm() {
             await api.post("/diagnosis", { tiket_id: Number(id), ...form });
             navigate(`/tiket-servis/${id}`);
         } catch (err) {
-            alert(err.response?.data?.message || "Terjadi kesalahan");
+            toast.error(err.response?.data?.message || "Terjadi kesalahan");
         } finally {
             setLoading(false);
         }

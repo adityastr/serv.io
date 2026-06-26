@@ -53,7 +53,7 @@ async function getById(req, res) {
                 teknisi: { select: { id: true, nama: true } },
                 diagnosis: true,
                 log_perbaikan: { orderBy: { created_at: "desc" } },
-                penggunaan_sparepart: { include: { sparepart: true } },
+                penggunaan_sparepart: { include: { sparepart: { include: { brand: true } } } },
                 invoice: true,
             },
         });
@@ -71,11 +71,17 @@ async function getById(req, res) {
 // Membuat tiket servis baru
 async function create(req, res) {
     try {
-        const { perangkat_id, teknisi_id, keluhan } = req.body;
+        const { perangkat_id, teknisi_id, keluhan, kelengkapan } = req.body;
 
         const perangkat = await prisma.perangkat.findUnique({ where: { id: Number(perangkat_id) } });
         if (!perangkat) {
             return res.status(404).json({ message: "Perangkat tidak ditemukan" });
+        }
+
+        // Process uploaded files if any
+        let foto_kondisi = null;
+        if (req.files && req.files.length > 0) {
+            foto_kondisi = req.files.map(file => `/uploads/${file.filename}`);
         }
 
         // Generate nomor tiket
@@ -88,6 +94,8 @@ async function create(req, res) {
                 perangkat_id: Number(perangkat_id),
                 teknisi_id: teknisi_id ? Number(teknisi_id) : null,
                 keluhan,
+                kelengkapan,
+                foto_kondisi: foto_kondisi ? JSON.stringify(foto_kondisi) : null,
                 status: "diterima",
             },
             include: {
@@ -105,7 +113,7 @@ async function create(req, res) {
 // Memperbarui tiket servis (status, teknisi)
 async function update(req, res) {
     try {
-        const { status, teknisi_id, keluhan } = req.body;
+        const { status, teknisi_id, keluhan, catatan_admin } = req.body;
         const id = Number(req.params.id);
 
         const tiket = await prisma.tiketServis.findUnique({ where: { id } });
@@ -122,11 +130,38 @@ async function update(req, res) {
                 });
             }
 
-            // RBAC: Teknisi hanya bisa mengubah status terkait perbaikan
-            if (req.user.role === "teknisi" && !["dalam_perbaikan", "selesai"].includes(status)) {
-                return res.status(403).json({
-                    message: "Akses ditolak: Teknisi hanya diizinkan memperbarui status ke 'dalam_perbaikan' atau 'selesai'",
+            // RBAC: Teknisi hanya bisa mengubah status menjadi 'selesai' dari 'dalam_perbaikan'
+            if (req.user.role === "teknisi") {
+                if (status !== "selesai") {
+                    return res.status(403).json({
+                        message: "Akses ditolak: Teknisi hanya diizinkan memperbarui status ke 'selesai'. Tahap 'dalam_perbaikan' harus dimulai oleh Admin.",
+                    });
+                }
+                if (tiket.status !== "dalam_perbaikan") {
+                    return res.status(403).json({
+                        message: "Akses ditolak: Tiket harus dalam status 'dalam perbaikan' untuk diselesaikan.",
+                    });
+                }
+
+                // Proteksi: Pastikan teknisi sudah mengisi log perbaikan sebelum menyelesaikan
+                const logPerbaikan = await prisma.logPerbaikan.findFirst({
+                    where: { tiket_id: id, fase: "Perbaikan" }
                 });
+                if (!logPerbaikan) {
+                    return res.status(400).json({
+                        message: "Proteksi: Anda harus menambahkan minimal satu Log Perbaikan sebelum dapat menyelesaikan tiket ini.",
+                    });
+                }
+            }
+        }
+
+        // RBAC: Teknisi hanya boleh ambil alih jika kosong, dan hanya boleh edit tiket sendiri
+        if (req.user.role === "teknisi") {
+            if (teknisi_id && teknisi_id !== req.user.id) {
+                return res.status(403).json({ message: "Akses ditolak: Anda tidak bisa menugaskan tiket ke teknisi lain." });
+            }
+            if (tiket.teknisi_id && tiket.teknisi_id !== req.user.id) {
+                return res.status(403).json({ message: "Akses ditolak: Ini bukan tiket Anda." });
             }
         }
 
@@ -142,6 +177,17 @@ async function update(req, res) {
                 teknisi: { select: { id: true, nama: true } },
             },
         });
+
+        // Insert log catatan admin if provided
+        if (catatan_admin && req.user.role === "admin") {
+            await prisma.logPerbaikan.create({
+                data: {
+                    tiket_id: id,
+                    fase: "Catatan Admin",
+                    catatan: catatan_admin,
+                },
+            });
+        }
 
         return res.json({ message: "Tiket servis berhasil diperbarui", data: updated });
     } catch (error) {

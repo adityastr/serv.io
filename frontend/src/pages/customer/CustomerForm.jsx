@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
@@ -23,7 +24,7 @@ export default function CustomerForm() {
                         alamat: res.data.alamat || "",
                     });
                 })
-                .catch(() => alert("Customer tidak ditemukan"))
+                .catch(() => toast.error("Customer tidak ditemukan"))
                 .finally(() => setFetching(false));
         }
     }, [id, isEdit]);
@@ -40,7 +41,7 @@ export default function CustomerForm() {
             }
             navigate("/customer");
         } catch (err) {
-            alert(err.response?.data?.message || "Terjadi kesalahan");
+            toast.error(err.response?.data?.message || "Terjadi kesalahan");
         } finally {
             setLoading(false);
         }

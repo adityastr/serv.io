@@ -16,27 +16,33 @@ const STATUS_LABELS = {
 };
 
 export default function TiketServisList() {
-    const { isAdmin } = useAuth();
-    const [tikets, setTikets] = useState([]);
+    const { isAdmin, user } = useAuth();
+    const [allTikets, setAllTikets] = useState([]);
     const [filter, setFilter] = useState("");
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetchTikets();
-    }, [filter]);
+        fetchAllTikets();
+    }, []);
 
-    async function fetchTikets() {
+    async function fetchAllTikets() {
         setLoading(true);
         try {
-            const params = filter ? { status: filter } : {};
-            const res = await api.get("/tiket-servis", { params });
-            setTikets(res.data);
+            const res = await api.get("/tiket-servis");
+            setAllTikets(res.data);
         } catch (err) {
             console.error(err);
         } finally {
             setLoading(false);
         }
     }
+
+    const tikets = allTikets.filter(t => {
+        if (!isAdmin && t.teknisi && t.teknisi.id !== user?.id) return false;
+        if (filter && t.status !== filter) return false;
+        return true;
+    });
+    const unassignedCount = allTikets.filter(t => t.status === "diterima" && !t.teknisi).length;
 
     return (
         <div className="space-y-6">
@@ -68,19 +74,27 @@ export default function TiketServisList() {
                 >
                     Semua
                 </button>
-                {Object.entries(STATUS_LABELS).map(([key, val]) => (
-                    <button
-                        key={key}
-                        onClick={() => setFilter(key)}
-                        className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${
-                            filter === key 
-                            ? "bg-slate-900 text-white border-slate-900 shadow-sm" 
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                        }`}
-                    >
-                        {val.label}
-                    </button>
-                ))}
+                {Object.entries(STATUS_LABELS).map(([key, val]) => {
+                    const showBadge = key === "diterima" && unassignedCount > 0 && !isAdmin;
+                    return (
+                        <button
+                            key={key}
+                            onClick={() => setFilter(key)}
+                            className={`relative px-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                                filter === key 
+                                ? "bg-slate-900 text-white border-slate-900 shadow-sm" 
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                            }`}
+                        >
+                            {val.label}
+                            {showBadge && (
+                                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm animate-pulse">
+                                    {unassignedCount}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Table */}

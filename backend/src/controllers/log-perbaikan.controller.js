@@ -18,9 +18,12 @@ async function create(req, res) {
             return res.status(403).json({ message: "Anda tidak berhak menambahkan log pada tiket ini" });
         }
 
+        const fase = ["diterima", "didiagnosis", "menunggu_persetujuan", "disetujui", "dibatalkan"].includes(tiket.status) ? "Diagnosis" : "Perbaikan";
+
         const log = await prisma.logPerbaikan.create({
             data: {
                 tiket_id: Number(tiket_id),
+                fase,
                 catatan,
                 foto_url: foto_url || null,
             },

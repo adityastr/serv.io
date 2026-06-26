@@ -1,5 +1,6 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const prisma = require("../config/database");
 
 // Login
@@ -60,5 +61,45 @@ async function me(req, res) {
         return res.status(500).json({ message: "Terjadi kesalahan", error: error.message });
     }
 }
+// Update Profil
+async function updateProfile(req, res) {
+    try {
+        const { nama, email, currentPassword, newPassword } = req.body;
+        const userId = req.user.id;
 
-module.exports = { login, logout, me };
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
+
+        const dataToUpdate = {};
+
+        // Validasi dan update email jika diubah
+        if (email && email !== user.email) {
+            const existingUser = await prisma.user.findUnique({ where: { email } });
+            if (existingUser) return res.status(400).json({ message: "Email sudah digunakan oleh akun lain" });
+            dataToUpdate.email = email;
+        }
+
+        if (nama) dataToUpdate.nama = nama;
+
+        // Ubah password jika form diisi
+        if (currentPassword && newPassword) {
+            const valid = await bcrypt.compare(currentPassword, user.password);
+            if (!valid) return res.status(400).json({ message: "Password lama tidak sesuai" });
+            if (newPassword.length < 6) return res.status(400).json({ message: "Password baru minimal 6 karakter" });
+            
+            dataToUpdate.password = await bcrypt.hash(newPassword, 10);
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: dataToUpdate,
+            select: { id: true, nama: true, email: true, role: true }
+        });
+
+        return res.json({ message: "Profil berhasil diperbarui", user: updatedUser });
+    } catch (error) {
+        return res.status(500).json({ message: "Terjadi kesalahan sistem", error: error.message });
+    }
+}
+
+module.exports = { login, logout, me, updateProfile };

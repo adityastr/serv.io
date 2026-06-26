@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1024" width="1440" height="1024" style="background-color: #FAFAFA; font-family: 'Inter', system-ui, sans-serif;">
+  <!-- Mid-Fi Login Wireframe -->
+  
+  <!-- Centered Card -->
+  <g transform="translate(480, 260)">
+    <!-- Shadow and Card bg -->
+    <rect width="480" height="500" rx="16" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2" filter="drop-shadow(0 20px 25px rgba(0,0,0,0.05))" />
+    
+    <!-- Logo Icon -->
+    <rect x="208" y="48" width="64" height="64" rx="16" fill="#525252" />
+    <path d="M230 76l12 -12M236 84l8 -8" stroke="#FFFFFF" stroke-width="3" />
+
+    <!-- Title -->
+    <text x="240" y="148" font-size="24" font-weight="900" fill="#171717" text-anchor="middle">Staff Portal</text>
+    <text x="240" y="174" font-size="14" fill="#737373" text-anchor="middle">Silakan login untuk mengakses manajemen servis.</text>
+
+    <!-- Email Field -->
+    <text x="48" y="240" font-size="13" font-weight="600" fill="#404040">Alamat Email</text>
+    <rect x="48" y="252" width="384" height="48" rx="8" fill="#FAFAFA" stroke="#D4D4D4" stroke-width="1.5" />
+    <text x="64" y="282" font-size="14" fill="#737373">admin@repair.com</text>
+
+    <!-- Password Field -->
+    <text x="48" y="324" font-size="13" font-weight="600" fill="#404040">Kata Sandi</text>
+    <rect x="48" y="336" width="384" height="48" rx="8" fill="#FAFAFA" stroke="#D4D4D4" stroke-width="1.5" />
+    <!-- Password Dots -->
+    <circle cx="64" cy="360" r="4" fill="#171717" />
+    <circle cx="76" cy="360" r="4" fill="#171717" />
+    <circle cx="88" cy="360" r="4" fill="#171717" />
+    <circle cx="100" cy="360" r="4" fill="#171717" />
+    <circle cx="112" cy="360" r="4" fill="#171717" />
+    <circle cx="124" cy="360" r="4" fill="#171717" />
+    <circle cx="136" cy="360" r="4" fill="#171717" />
+
+    <!-- Button -->
+    <rect x="48" y="410" width="384" height="48" rx="8" fill="#171717" />
+    <text x="240" y="440" font-size="15" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Masuk Dashboard</text>
+  </g>
+</svg>

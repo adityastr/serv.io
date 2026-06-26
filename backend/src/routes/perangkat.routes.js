@@ -10,9 +10,22 @@ router.use(authenticate);
 
 const perangkatValidation = [
     body("customer_id").notEmpty().withMessage("Customer wajib dipilih"),
-    body("jenis_perangkat").notEmpty().withMessage("Jenis perangkat wajib diisi"),
-    body("merek").notEmpty().withMessage("Merek wajib diisi"),
-    body("model").notEmpty().withMessage("Model wajib diisi"),
+    body("jenis_perangkat")
+        .notEmpty().withMessage("Jenis perangkat wajib diisi")
+        .isLength({ max: 50 }).withMessage("Maksimal 50 karakter")
+        .trim(),
+    body("merek")
+        .notEmpty().withMessage("Merek wajib diisi")
+        .isLength({ max: 50 }).withMessage("Maksimal 50 karakter")
+        .trim(),
+    body("model")
+        .notEmpty().withMessage("Model wajib diisi")
+        .isLength({ max: 50 }).withMessage("Maksimal 50 karakter")
+        .trim(),
+    body("nomor_seri")
+        .optional({ checkFalsy: true })
+        .isLength({ max: 100 }).withMessage("Maksimal 100 karakter")
+        .trim()
 ];
 
 router.get("/", getAll);
